@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.content.Intent;
 import android.view.KeyEvent;
 import android.view.Menu;
+import android.view.MenuItem;
 import android.view.Window;
 import android.view.WindowManager;
 
@@ -40,4 +41,16 @@ public class GameActivity extends Activity {
 			gameView.goBack();
 		}		
 	}
+	
+	public boolean onKeyUp(int keyCode, KeyEvent event) { 
+        if (keyCode == KeyEvent.KEYCODE_MENU) {
+
+        	if (gameView.getScreenState() != 0) {
+        		gameView.goBack();
+        	}
+            return true;
+        }
+        return super.onKeyUp(keyCode, event); 
+    } 
+
 }

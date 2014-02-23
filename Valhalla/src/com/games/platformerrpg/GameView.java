@@ -1,5 +1,7 @@
 package com.games.platformerrpg;
 
+import game_objects.Platform;
+
 import java.util.ArrayList;
 
 import player.Player;
@@ -7,43 +9,37 @@ import player.Player;
 import saves.SaveHandler;
 import screens.GameScreen;
 import screens.HUD;
-import screens.ScreenElement;
 import screens.TitleScreen;
 
 
 import android.content.Context;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Point;
 import android.graphics.PointF;
-import android.graphics.Typeface;
 import android.os.Handler;
 import android.os.Message;
 import android.util.AttributeSet;
-import android.util.SparseArray;
 import android.view.Display;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
-import android.view.View;
 import android.view.WindowManager;
 import android.app.Activity;
 
 
 //list of things to do next
 // - possibly add character to title screen or make glowy things initially take the shape of a sword or something and then move when touched - do after gameplay
-// - fix jump - have gravity and apply it at time intervals; have a while loop within the update method and change dY and yPos every increment
-// - start adding instructions
-// - platform objects 
+// - potions aren't scaling properly
+// - jump height seems to decrease with height on screen - no idea why though :S
 // - make background scroll
-// - make player object climb
+// - add ladders
+// - make player object get onto, climb, and get off of ladders
 // - give player a weapon 
 // - animate weapon to match player movement 
-// - add first enemy 
-// - animate enemy 
+// - add enemies
+// - animate enemies
 // - add NPCs 
 // - add NPC speech bubbles 
 // - make bubble scale and point to correct place 
@@ -54,6 +50,8 @@ import android.app.Activity;
 // - plan and develop a complete level 
 // - plan and develop maps/levels and story 
 // - create bosses on an as-needed basis, as well as any other objects 
+// - start adding instructions/horde mode/achievements
+// - add ads
 
 // - for live loading screen: move loading into separate thread (most of the screens and such are global anyway), and set a loading state which is then updated (spin or dots, etc)
 
@@ -290,11 +288,14 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback{
 							canvas.drawText("" + player.hPotions, (int)(1180 * xScale), (int)(460 * yScale), centerPaint);
 							canvas.drawText("" + player.mPotions, (int)(1180 * xScale), (int)(596 * yScale), centerPaint);
 						}
+						if (player.falling == true) {
+							canvas.drawText("falling", 10, 100, whitePaint);
+						}
 					}
 				}
 				else
 					canvas.drawText("LOADING...", (int)(100 * xScale), screenHeight - (int)(100 * yScale), whitePaint);
-				//canvas.drawText("" + fps, 10, 50, whitePaint);
+				canvas.drawText("" + fps, 10, 50, whitePaint);
 			} catch (Exception e) {}
 		}
 		
@@ -333,7 +334,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback{
 					title = null;
 					hud = new HUD(myContext, xScale, yScale, screenWidth, screenHeight);
 					hud.sound = file.sound;
-					player = new Player(myContext, xScale, yScale, screenWidth, screenHeight);
+					player = new Player(myContext, xScale, yScale, screenWidth, screenHeight, (int)(screenWidth/2) - (int)(75 * xScale), (int)(386 * yScale));
 					game = new GameScreen(myContext, xScale, yScale, screenWidth, screenHeight);
 					//while (!game.loaded) {}
 					loading = false;
@@ -344,7 +345,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback{
 					title = null;
 					hud = new HUD(myContext, xScale, yScale, screenWidth, screenHeight);
 					hud.sound = file.sound;
-					player = new Player(myContext, xScale, yScale, screenWidth, screenHeight);
+					player = new Player(myContext, xScale, yScale, screenWidth, screenHeight, (int)(screenWidth/2) - (int)(75 * xScale), (int)(386 * yScale));
 					game = new GameScreen(myContext, xScale, yScale, screenWidth, screenHeight);
 					//while (!game.loaded) {}
 					loading = false;
@@ -381,39 +382,94 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback{
 			//in game
 			if (screenID == 1) {
 				if (hud.paused == false) {
-					//updating the player
+					
+					//update the level and player here
+					//update player
 					if (player != null) {
 						player.update(elapsedTime);
 						if (!player.isJumping){ 
-							if (direction == 4) { //up-left
-								player.direction = 0;
-								player.jumpSide();
+							if (!player.falling){ 
+								if (direction == 4) { //up-left
+									player.direction = 0;
+									player.jumpSide();
+								}
+								else if (direction == 5) { //left
+									player.direction = 0;
+									player.walk();
+								}
+								else if (direction == 6) { //up
+									player.ladderDir = 1;
+									player.jump();
+								}
+								else if (direction == 7) { //down
+									player.ladderDir = 0;
+									player.climb();
+								}
+								else if (direction == 8) { //up-right
+									player.direction = 1;
+									player.jumpSide();
+								}
+								else if (direction == 9) { //right
+									player.direction = 1;
+									player.walk();
+								}
+								else if (direction == 10) {
+									player.stop(); //stand
+								}
 							}
-							else if (direction == 5) { //left
-								player.direction = 0;
-								player.walk();
+							else {
+								if (direction == 5) 
+									player.driftLeft();
+								else if (direction == 9)
+									player.driftRight();
 							}
-							else if (direction == 6) { //up
-								player.ladderDir = 1;
-								player.jump();
-							}
-							else if (direction == 7) { //down
-								player.ladderDir = 0;
-								player.climb();
-							}
-							else if (direction == 8) { //up-right
-								player.direction = 1;
-								player.jumpSide();
-							}
-							else if (direction == 9) { //right
-								player.direction = 1;
-								player.walk();
-							}
-							else if (direction == 10) {
-								player.stop(); //stand
+						}
+						else if (!player.jumpingSideways) {
+							if (player.falling || player.isJumping){
+								if (direction == 5)
+									player.driftLeft();
+								else if (direction == 9)
+									player.driftRight();
 							}
 						}
 					}
+					// - attacks/etc
+					// - collision with level objects
+					boolean collision = false;
+					for (Platform p : game.level.platforms){
+						
+						//need to account for character foot position
+						//catches only near top of arc, (moving slowly)
+						//falling when not on blocks
+						
+						if (player.yPos + (int)(145 * yScale) >= p.yPos - 2 && player.yPos + (int)(145 * yScale) <= p.yPos + 2 
+							&& ((player.xPos + (int)(56 * xScale)>= p.xPos && player.xPos + (int)(56 * xScale) < p.xPos + (int)(150 * xScale)) 
+							|| (player.xPos + (int)(94 * xScale) >= p.xPos && player.xPos + (int)(94 * xScale) < p.xPos + (int)(150 * xScale))) ){
+							
+							if (player.falling){ 
+								player.isJumping = false;
+								player.jumpingSideways = false;
+								player.dY = player.defaultDY;
+								player.yPos = p.yPos - (int)(145 * yScale);
+							}
+							player.falling = false;
+							collision = true;
+						}
+					}
+					//falling
+					if (collision == false) {
+						if (player.isJumping && !player.falling) {}
+						else {
+							player.falling = true;
+						}
+					}
+					
+					
+					
+					//update level
+					// - shift things to match player movement
+					//updating the player
+					
 					
 					//updating the screen
 					game.update(elapsedTime);

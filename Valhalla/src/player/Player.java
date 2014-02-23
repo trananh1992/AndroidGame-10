@@ -16,6 +16,7 @@ public class Player {
 	//tracking direction
 	public int direction = 0; //0 - left, 1 - right
 	public int ladderDir = 0; //0 - down, 1 - up
+	public boolean falling = false;
 	
 	//amount to move for each frame - varies with elapsed time
 	int moveDist = 0;
@@ -26,6 +27,9 @@ public class Player {
 	public boolean jumpingSideways = false;
 	public float defaultDY;
 	public float dY;
+	
+	public float topDY;
+	public float maxDY;
 	
 	//tracking frames
 	private int frameID = 0;
@@ -49,7 +53,9 @@ public class Player {
 	//position - temporary
 	public int xPos;
 	public int yPos;
-	public int floor;
+	public float xOffset;
+	public float yOffset;
+	public int floor; //base floor - must make map coords not screen coords
 	
 	//the frames
 	//keeping frames in arrays
@@ -84,7 +90,7 @@ public class Player {
 	int screenWidth;
 	int screenHeight;
 	
-	public Player(Context context, float x_scale, float y_scale, int screen_width, int screen_height) {
+	public Player(Context context, float x_scale, float y_scale, int screen_width, int screen_height, int spawnX, int spawnY) {
 		//setting the scales and dimensions
 		xScale = x_scale;
 		yScale = y_scale;
@@ -96,9 +102,9 @@ public class Player {
 		dY = defaultDY;
 		
 		//temporary
-		xPos = (int)(screenWidth/2) - (int)(75 * xScale);
-		yPos = (int)(screenHeight/2) - (int)(75 * yScale);
-		floor = (int)(screenHeight/2) - (int)(75 * yScale);
+		xPos = spawnX;
+		yPos = spawnY - 30;
+		floor = spawnY + (int)(140 * yScale); //should be level dependent
 		
 		//load all the bitmaps
 		left[0] = Bitmap.createScaledBitmap(BitmapFactory.decodeResource(context.getResources(), R.drawable.standleft), (int)(150 * xScale), (int)(150 * yScale), true);
@@ -117,7 +123,7 @@ public class Player {
 	}
 	
 	public void draw(Canvas canvas) {
-		if (isJumping) {
+		if (isJumping || falling) {
 			if (direction == 0)
 				canvas.drawBitmap(left[1], xPos, yPos, null);
 			else
@@ -137,28 +143,37 @@ public class Player {
 		}
 	}
 	
+	private int prevY = 0;
+	
 	public void update(Long elapsedTime) {
 		int elapsed = (int)(elapsedTime / 1000000); //converting to milliseconds
 		moveDist = elapsed / 8;
 		//apply gravity and time delays and such
 		
-		//applying gravity to jumps - should add terminal velocity
-		if (isJumping) {
-			if (yPos >= floor && dY < 0) {
-				yPos = floor;
-				isJumping = false;
-				jumpingSideways = false;
-				dY = defaultDY;
+		//applying gravity to jumps and falls - should add terminal velocity
+		if (isJumping || falling) {
+			
+			//checking if top of jump has been reached
+			if (dY < 0) {
+				falling = true;
 			}
-			else {
-				yPos -= dY;
-				dY -= moveDist / 7.0; //strangely enough this value works nicely
-				if (jumpingSideways) {
-					if (direction == 0)
-						xPos -= moveDist;
-					else
-						xPos += moveDist;
-				}
+			
+			//setting start acceleration for falling
+			if (falling && dY > 0) 
+				dY = 0;
+			
+			//changing position during jump/fall
+			yPos -= dY;
+			dY -= (2.0 * yScale) / (7.0 * yScale); //hard-coded so that distance moved is the same for low frame rates
+			if (dY < (-8 * yScale)) {
+				dY = (float) (-8 * yScale);
+				isJumping = false;
+			}
+			if (jumpingSideways) {
+				if (direction == 0)
+					xPos -= 2.0; //hard-coded so that distance moved is the same for low frame rates
+				else
+					xPos += 2.0; //hard-coded so that distance moved is the same for low frame rates
 			}
 		}
 		
@@ -175,26 +190,54 @@ public class Player {
 	public void walk() {
 		walking = true;
 		if (direction == 0) {
-			xPos -= moveDist;
+			xPos -= 2.0;//moveDist;
 		}
 		else {
-			xPos += moveDist;
+			xPos += 2.0;//moveDist;
 		}		
 	}
 	
 	public void jump() {
 		walking = false;
 		isJumping = true;
+		falling = false;
+		dY = defaultDY;
 	}
 	
 	public void jumpSide() {
 		walking = false;
 		isJumping = true;
 		jumpingSideways = true;
+		falling = false;
+		dY = defaultDY;
 	}
 	
 	public void stop() {
 		walking = false;
+	}
+	
+	public void driftLeft() {
+		walking = false;
+		if (jumpingSideways && !isJumping){
+			if (direction == 1)
+				jumpingSideways = false;
+		}
+		else {
+			xPos -= 2.0;//moveDist;
+			direction = 0;
+		}
+	}
+	
+	public void driftRight() {
+		walking = false;
+		if (jumpingSideways && !isJumping){
+			if (direction == 0)
+				jumpingSideways = false;
+		}
+		else {
+			xPos += 2.0;//moveDist;
+			direction = 1;
+		}
 	}
 	
 	public void climb() {
